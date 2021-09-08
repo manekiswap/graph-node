@@ -4,9 +4,8 @@ use crate::{
 };
 use graph::{
     components::near::NearBlock,
-    prelude::{CheapClone, Logger},
+    prelude::{async_trait, CheapClone, Logger},
 };
-use tonic::async_trait;
 
 #[derive(Clone)]
 pub struct NearAdapter {

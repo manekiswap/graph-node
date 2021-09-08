@@ -21,6 +21,7 @@ use graph::log::logger;
 use graph::prelude::{IndexNodeServer as _, JsonRpcServer as _, *};
 use graph::util::security::SafeDisplay;
 use graph_chain_ethereum::{self as ethereum, network_indexer, EthereumAdapterTrait, Transport};
+use graph_chain_near::{self as near};
 use graph_core::{
     LinkResolver, MetricsRegistry, SubgraphAssignmentProvider as IpfsSubgraphAssignmentProvider,
     SubgraphInstanceManager, SubgraphRegistrar as IpfsSubgraphRegistrar,
@@ -222,16 +223,20 @@ async fn main() {
         let ethereum_chains = ethereum_networks_as_chains(
             &mut blockchain_map,
             &logger,
+            node_id.clone(),
             metrics_registry.clone(),
+            &firehose_networks,
             &eth_networks,
             network_store.as_ref(),
+            chain_head_update_listener,
             &logger_factory,
         );
 
-        let near_chains = near_networks_as_chains(
+        near_networks_as_chains(
             &mut blockchain_map,
             &logger,
             metrics_registry.clone(),
+            &firehose_networks,
             network_store.as_ref(),
             &logger_factory,
         );
@@ -303,7 +308,7 @@ async fn main() {
                 );
             });
 
-        if !opt.disable_block_ingestor {
+        if ethereum_chains.len() > 0 && !opt.disable_block_ingestor {
             let block_polling_interval = Duration::from_millis(opt.ethereum_polling_interval);
 
             start_block_ingestor(&logger, block_polling_interval, ethereum_chains);
@@ -719,6 +724,7 @@ fn ethereum_networks_as_chains(
     logger: &Logger,
     node_id: NodeId,
     registry: Arc<MetricsRegistry>,
+    firehose_networks: &FirehoseNetworks,
     eth_networks: &EthereumNetworks,
     store: &Store,
     chain_head_update_listener: Arc<ChainHeadUpdateListener>,
@@ -744,6 +750,8 @@ fn ethereum_networks_as_chains(
                 })
         })
         .map(|(network_name, eth_adapters, chain_store, is_ingestible)| {
+            let firehose_endpoints = firehose_networks.networks.get(network_name);
+
             let chain = ethereum::Chain::new(
                 logger_factory.clone(),
                 network_name.clone(),
@@ -752,6 +760,7 @@ fn ethereum_networks_as_chains(
                 chain_store.cheap_clone(),
                 chain_store,
                 store.subgraph_store(),
+                firehose_endpoints.map_or_else(|| FirehoseNetworkEndpoints::new(), |v| v.clone()),
                 eth_adapters.clone(),
                 chain_head_update_listener.clone(),
                 *ANCESTOR_COUNT,
@@ -778,7 +787,7 @@ fn near_networks_as_chains(
     store: &Store,
     logger_factory: &LoggerFactory,
 ) -> HashMap<String, Arc<near::Chain>> {
-    let chains = firehose_networks
+    let chains: Vec<_> = firehose_networks
         .networks
         .iter()
         .filter_map(|(network_name, firehose_endpoints)| {
@@ -809,7 +818,8 @@ fn near_networks_as_chains(
                         .map_or_else(|| FirehoseNetworkEndpoints::new(), |v| v.clone()),
                 )),
             )
-        });
+        })
+        .collect();
 
     for (network_name, chain) in chains.iter().cloned() {
         blockchain_map.insert::<graph_chain_near::Chain>(network_name, chain)

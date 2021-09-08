@@ -1,13 +1,11 @@
 mod adapter;
 mod capabilities;
+pub mod chain;
+pub mod codec;
 mod data_source;
 mod near_adapter;
-mod trigger;
-
-// StreamingFast components
-pub mod chain;
 pub mod runtime;
-pub mod sf;
+mod trigger;
 
 pub use self::near_adapter::NearAdapter;
 pub use self::runtime::RuntimeAdapter;
