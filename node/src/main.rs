@@ -1,6 +1,7 @@
 use ethereum::{EthereumNetworks, NodeCapabilities, ProviderEthRpcMetrics};
 use futures::future::join_all;
 use git_testament::{git_testament, render_testament};
+use graph::petgraph::graph::Node;
 use graph::{ipfs_client::IpfsClient, prometheus::Registry};
 use lazy_static::lazy_static;
 use std::io::{BufRead, BufReader};
@@ -164,7 +165,7 @@ async fn main() {
     let logger_factory = LoggerFactory::new(logger.clone(), elastic_config);
 
     // Try to create IPFS clients for each URL specified in `--ipfs`
-    let ipfs_clients: Vec<_> = create_ipfs_clients(&logger, &opt.ipfs);
+    let ipfs_clients: Vec<_> = create_ipfs_clients(&logger, &opt.ipfs, &opt.ipfs_token);
 
     // Convert the clients into a link resolver. Since we want to get past
     // possible temporary DNS failures, make the resolver retry
@@ -590,7 +591,11 @@ async fn connect_networks(
     (eth_networks, idents)
 }
 
-fn create_ipfs_clients(logger: &Logger, ipfs_addresses: &Vec<String>) -> Vec<IpfsClient> {
+fn create_ipfs_clients(
+    logger: &Logger,
+    ipfs_addresses: &Vec<String>,
+    token: &Option<String>,
+) -> Vec<IpfsClient> {
     // Parse the IPFS URL from the `--ipfs` command line argument
     let ipfs_addresses: Vec<_> = ipfs_addresses
         .iter()
@@ -611,8 +616,12 @@ fn create_ipfs_clients(logger: &Logger, ipfs_addresses: &Vec<String>) -> Vec<Ipf
                 "Trying IPFS node at: {}",
                 SafeDisplay(&ipfs_address)
             );
+            let client = match &token {
+                Some(t) => IpfsClient::new_with_token(&ipfs_address, &t),
+                None => IpfsClient::new(&ipfs_address),
+            };
 
-            let ipfs_client = match IpfsClient::new(&ipfs_address) {
+            let ipfs_client = match client {
                 Ok(ipfs_client) => ipfs_client,
                 Err(e) => {
                     error!(

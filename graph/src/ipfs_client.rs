@@ -2,13 +2,12 @@ use crate::prelude::CheapClone;
 use anyhow::Error;
 use bytes::Bytes;
 use futures03::Stream;
-use http::header::CONTENT_LENGTH;
+use http::header::{AUTHORIZATION, CONTENT_LENGTH};
 use http::Uri;
 use reqwest::multipart;
 use serde::Deserialize;
 use std::time::Duration;
 use std::{str::FromStr, sync::Arc};
-
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct ObjectStatResponse {
@@ -45,15 +44,32 @@ impl CheapClone for IpfsClient {
 
 impl IpfsClient {
     pub fn new(base: &str) -> Result<Self, Error> {
+        let rq = reqwest::Client::new();
         Ok(IpfsClient {
-            client: Arc::new(reqwest::Client::new()),
+            client: Arc::new(rq),
+            base: Arc::new(Uri::from_str(base)?),
+        })
+    }
+
+    pub fn new_with_token(base: &str, token: &str) -> Result<Self, Error> {
+        let token = format!("Basic {}", token);
+        let mut headers = reqwest::header::HeaderMap::new();
+        headers.insert(AUTHORIZATION, token.parse().unwrap());
+
+        let rq = reqwest::Client::builder()
+            .default_headers(headers)
+            .build()
+            .unwrap();
+        Ok(IpfsClient {
+            client: Arc::new(rq),
             base: Arc::new(Uri::from_str(base)?),
         })
     }
 
     pub fn localhost() -> Self {
+        let rq = reqwest::Client::new();
         IpfsClient {
-            client: Arc::new(reqwest::Client::new()),
+            client: Arc::new(rq),
             base: Arc::new(Uri::from_str("http://localhost:5001").unwrap()),
         }
     }

@@ -98,6 +98,14 @@ pub struct Opt {
         env = "IPFS",
         help = "HTTP addresses of IPFS nodes"
     )]
+    pub ipfs_token: Option<String>,
+    #[structopt(
+        long,
+        value_name = "IPFS TOKEN",
+        env = "IPFS_TOKEN",
+        hide_env_values = true,
+        help = "IPFS TOKEN to use"
+    )]
     pub ipfs: Vec<String>,
     #[structopt(
         long,
